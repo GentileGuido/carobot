@@ -4,5 +4,4 @@ services:
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "./start.sh"
-    pythonVersion: 3.11.9
-
+    pythonVersion: 3.10.12
