@@ -3,4 +3,4 @@ openai==0.28
 requests
 pydub
 ffmpeg-python
-git+https://github.com/python/cpython@3.10#egg=imghdr&subdirectory=Lib
+filetype
