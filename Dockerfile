@@ -1,6 +1,9 @@
 # Usa una imagen oficial de Python 3.10
 FROM python:3.10-slim
 
+# Instala ffmpeg para procesar audios
+RUN apt-get update && apt-get install -y ffmpeg
+
 # Establece el directorio de trabajo
 WORKDIR /app
 
