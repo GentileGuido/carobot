@@ -28,11 +28,17 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 
 # --- Ruta del Webhook ---
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "OK", 200
+@app.route("/setwebhook", methods=["GET"])
+def set_webhook():
+    webhook_url = f"https://carobot.onrender.com/{TOKEN}"
+    response = requests.get(
+        f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
+    )
+    return {
+        "status": response.status_code,
+        "response": response.json()
+    }, response.status_code
+
 
 # --- Ruta de prueba (opcional) ---
 @app.route("/", methods=["GET"])
