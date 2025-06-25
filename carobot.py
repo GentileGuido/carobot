@@ -108,3 +108,10 @@ def responder(mensaje, update):
             update.message.reply_voice(voice=open(archivo_voz, "rb"))
         else:
             update.message.reply_text(respuesta)
+
+def main():
+    print("✅ Carobot se inició correctamente (modo manual/test). Esperando mensajes desde main.py...")
+
+if __name__ == '__main__':
+    main()
+
