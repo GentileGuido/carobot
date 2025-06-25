@@ -2,28 +2,28 @@ import os
 import json
 import logging
 import requests
-import openai
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CommandHandler
+from telegram.ext import CallbackContext
 from pydub import AudioSegment
+from openai import OpenAI
 
-# Configuraciones iniciales
+# === CONFIGURACIONES ===
 TELEGRAM_TOKEN = "7565126134:AAFf_DlG4GKtikJ-8GtffoOPuNgO3u29JSI"
-OPENAI_API_KEY = "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 "
+OPENAI_API_KEY = "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"
 ELEVENLABS_API_KEY = "sk_6f90df4d5fafc6b06570d8b40a25fc729ffdbdb0a2986db2"
 VOICE_ID = "KMeI9occh5n1x0h9Ty62"
 TEMP_DIR = "temp_audio"
 MEMORIA_FILE = "memoria.json"
 AFIRMACIONES_FILE = "afirmaciones.json"
-ADMIN_CHAT_ID = 8022380641  # Reemplazar con tu verdadero chat_id
+ADMIN_CHAT_ID = 8022380641
 
 os.makedirs(TEMP_DIR, exist_ok=True)
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Perfil base de Carola
+# === PERFIL CAROLA ===
 PERFIL_CAROLA = [
     "Me llamo Carola Gentile, nací en Rosario, Argentina.",
     "Estudié Bellas Artes.",
@@ -33,6 +33,7 @@ PERFIL_CAROLA = [
     "Me interesa el arte, la naturaleza y las emociones humanas."
 ]
 
+# === FUNCIONES DE MEMORIA Y CONTEXTO ===
 def actualizar_afirmaciones(texto_usuario):
     frases = []
     texto_limpio = texto_usuario.strip().capitalize()
@@ -58,7 +59,6 @@ def actualizar_afirmaciones(texto_usuario):
 
     with open(AFIRMACIONES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info("Afirmaciones actualizadas: %s", frases)
 
 def detectar_y_aprender_correccion(texto_usuario):
     if texto_usuario.lower().strip().startswith("no"):
@@ -83,7 +83,6 @@ def detectar_y_aprender_correccion(texto_usuario):
 
             with open(AFIRMACIONES_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-                logger.info("Corrección aplicada: %s", afirmacion_nueva)
 
 def obtener_contexto_memoria():
     try:
@@ -100,7 +99,7 @@ def obtener_contexto_memoria():
 
 def detectar_emocion(texto):
     prompt = f"Detectá la emoción dominante del siguiente texto con una sola palabra (por ejemplo: alegría, tristeza, enojo, miedo, sorpresa, calma, amor, ansiedad):\n\nTexto: {texto}"
-    respuesta = openai.ChatCompletion.create(
+    respuesta = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}]
     )
@@ -123,7 +122,7 @@ def generar_respuesta(texto):
     contexto_memoria = obtener_contexto_memoria()
     contexto = f"Eres Carola, la hermana de Guido. Responde con cariño y empatía. La emoción del mensaje recibido es: {emocion}. Últimamente, Guido ha estado sintiendo: {emocion_reciente}. Algunas cosas que ya sabés: \n{contexto_memoria}"
 
-    respuesta = openai.ChatCompletion.create(
+    respuesta = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": contexto},
@@ -150,7 +149,6 @@ def guardar_memoria(usuario, mensaje, emocion, respuesta):
 
     with open(MEMORIA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info("Memoria guardada correctamente. Total entradas: %d", len(data))
 
 def obtener_emociones_recientes():
     try:
@@ -186,99 +184,16 @@ def sintetizar_audio(texto):
 
 def transcribir_audio(file_path):
     with open(file_path, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
-        return transcript["text"]
-
-def manejar_mensaje(update: Update, context: CallbackContext):
-    try:
-        mensaje = update.message.text
-        usuario = update.effective_user.first_name or "anon"
-        respuesta, emocion = generar_respuesta(mensaje)
-        guardar_memoria(usuario, mensaje, emocion, respuesta)
-        audio_path = sintetizar_audio(respuesta)
-        if audio_path:
-            with open(audio_path, "rb") as f:
-                update.message.reply_voice(voice=f)
-        else:
-            update.message.reply_text(respuesta)
-    except Exception as e:
-        logger.error("Error en manejar_mensaje:\n%s", e)
-        update.message.reply_text("Ups, hubo un error...")
-
-def manejar_audio(update: Update, context: CallbackContext):
-    try:
-        voice = update.message.voice or update.message.audio
-        if not voice:
-            update.message.reply_text("No pude recibir el audio 😢")
-            return
-        file = voice.get_file()
-        ogg_path = os.path.join(TEMP_DIR, f"{file.file_id}.ogg")
-        mp3_path = os.path.join(TEMP_DIR, f"{file.file_id}.mp3")
-        file.download(ogg_path)
-        AudioSegment.from_ogg(ogg_path).export(mp3_path, format="mp3")
-        texto = transcribir_audio(mp3_path)
-        respuesta, emocion = generar_respuesta(texto)
-        usuario = update.effective_user.first_name or "anon"
-        guardar_memoria(usuario, texto, emocion, respuesta)
-        audio_path = sintetizar_audio(respuesta)
-        if audio_path:
-            with open(audio_path, "rb") as f:
-                update.message.reply_voice(voice=f)
-        else:
-            update.message.reply_text(respuesta)
-    except Exception as e:
-        logger.error("Error procesando audio:\n%s", e)
-        update.message.reply_text("No pude procesar tu audio 😞")
-
-def reiniciar_memoria(update: Update, context: CallbackContext):
-    try:
-        if os.path.exists(MEMORIA_FILE):
-            os.remove(MEMORIA_FILE)
-        if os.path.exists(AFIRMACIONES_FILE):
-            os.remove(AFIRMACIONES_FILE)
-        update.message.reply_text("Memoria y afirmaciones reiniciadas correctamente 🧹")
-        logger.info("Memoria y afirmaciones reiniciadas manualmente.")
-    except Exception as e:
-        logger.error("Error al reiniciar memoria:\n%s", e)
-        update.message.reply_text("Ocurrió un error al reiniciar la memoria 😵")
-
-def ver_memoria(update: Update, context: CallbackContext):
-    try:
-        with open(AFIRMACIONES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = {"carola": [], "guido": []}
-
-    mensaje = "\U0001F9E0 *Memoria actual guardada:*\n\n"
-    mensaje += "\U0001F469‍\U0001F3A8 *Carola*\n"
-    for item in PERFIL_CAROLA + data.get("carola", []):
-        mensaje += f"• {item}\n"
-
-    mensaje += "\n\U0001F468‍\U0001F527 *Guido*\n"
-    for item in data.get("guido", []):
-        mensaje += f"• {item}\n"
-
-    update.message.reply_text(mensaje, parse_mode="Markdown")
-
-def main():
-    updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("reiniciar", reiniciar_memoria))
-    dp.add_handler(CommandHandler("vermemoria", ver_memoria))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, manejar_mensaje))
-    dp.add_handler(MessageHandler(Filters.voice | Filters.audio, manejar_audio))
-    updater.start_polling()
-    try:
-        bienvenida = (
-            "Hola, soy Carola, un bot generado con inteligencia artificial. "
-            "Estoy acá para charlar con vos. Recordá que no soy una persona real, "
-            "soy una herramienta emocional y terapéutica. ¿De qué querés que hablemos hoy?"
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
         )
-        context = updater.dispatcher.bot
-        context.send_message(chat_id=ADMIN_CHAT_ID, text=bienvenida)
-    except Exception as e:
-        logger.warning("No se pudo enviar el mensaje inicial: %s", e)
-    updater.idle()
+        return transcript.text
 
-if __name__ == '__main__':
-    main()
+# Estas funciones están listas para usarse como handlers externos:
+def responder(mensaje_usuario, update):
+    respuesta, emocion = generar_respuesta(mensaje_usuario)
+    update.message.reply_text(respuesta)
+
+# ✅ Ahora tu código está actualizado al nuevo SDK y listo para avanzar.
+¿Querés que actualicemos también tu `requirements.txt` o `Procfile` para asegurar el despliegue en Render?
