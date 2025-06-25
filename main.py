@@ -6,39 +6,40 @@ from dotenv import load_dotenv
 import os
 import requests
 
-from carobot import responder  # Asegurate de tener esta función en carobot.py
+from carobot import responder  # Esta función ya maneja texto y audio
 
 # --- Cargar variables de entorno ---
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 bot = Bot(token=TOKEN)
 
-# --- Crear app Flask ---
+# --- Iniciar Flask + Dispatcher de Telegram ---
 app = Flask(__name__)
-dispatcher = Dispatcher(bot, update_queue=Queue(), workers=0, use_context=True)
+dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 
-# --- Handlers ---
-def start(update: Update, context=None):
-    update.message.reply_text("¡Hola! Soy Carobot.")
+# --- Handlers de mensajes y comandos ---
+def start(update: Update, context):
+    update.message.reply_text("👋 ¡Hola! Soy Carobot. Probá escribirme o mandame un audio.")
 
-def handle_text(update: Update, context=None):
-    mensaje = update.message.text
-    responder(mensaje, update)  # Llama a la función en carobot.py
+def handle_message(update: Update, context):
+    mensaje = update.message.text if update.message.text else None
+    responder(mensaje, update)
 
-# --- Registrar Handlers ---
+# --- Registrar los handlers ---
 dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
-dispatcher.add_handler(MessageHandler(Filters.voice, handle_text))  # Agregamos soporte a audio
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+dispatcher.add_handler(MessageHandler(Filters.voice, handle_message))
 
-# --- Ruta raíz (opcional) ---
+# --- Ruta base (verificación simple) ---
 @app.route("/", methods=["GET"])
 def index():
-    return "Carobot está funcionando", 200
+    return "✅ Carobot Webhook OK", 200
 
-# --- Ruta para activar el Webhook ---
+# --- Ruta para activar el Webhook manualmente ---
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
-    webhook_url = f"https://carobot.onrender.com/{TOKEN}"
+    webhook_url = f"{RENDER_URL}/{TOKEN}"
     response = requests.get(
         f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
     )
@@ -47,7 +48,7 @@ def set_webhook():
         "response": response.json()
     }, response.status_code
 
-# --- Ruta para eliminar el Webhook ---
+# --- Ruta para eliminar Webhook manualmente ---
 @app.route("/deletewebhook", methods=["GET"])
 def delete_webhook():
     response = requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
@@ -56,7 +57,7 @@ def delete_webhook():
         "response": response.json()
     }, response.status_code
 
-# --- Ruta que recibe updates desde Telegram ---
+# --- Webhook de Telegram (recibe actualizaciones) ---
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
@@ -65,4 +66,5 @@ def webhook():
 
 # --- Ejecutar App ---
 if __name__ == "__main__":
+    print("✅ Carobot se está ejecutando en modo Webhook.")
     app.run(host="0.0.0.0", port=8000)
