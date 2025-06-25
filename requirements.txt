@@ -1,8 +1,6 @@
-python-telegram-bot==13.15
 flask
 python-dotenv
 requests
-openai
 pydub
-ffmpeg-python
-filetype
+python-telegram-bot==13.15
+openai>=1.0.0
