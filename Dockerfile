@@ -18,4 +18,4 @@ RUN pip install --upgrade pip && \
 EXPOSE 8000
 
 # Comando para iniciar tu bot
-CMD ["bash", "start.sh"]
+CMD ["python", "main.py"]
