@@ -1,3 +1,4 @@
+from queue import Queue
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
@@ -14,13 +15,13 @@ bot = Bot(token=TOKEN)
 
 # --- Crear app Flask ---
 app = Flask(__name__)
-dispatcher = Dispatcher(bot, None, workers=0)
+dispatcher = Dispatcher(bot, update_queue=Queue(), workers=0, use_context=True)
 
 # --- Handlers ---
-def start(update: Update, context):
+def start(update: Update, context=None):
     update.message.reply_text("¡Hola! Soy Carobot.")
 
-def handle_text(update: Update, context):
+def handle_text(update: Update, context=None):
     mensaje = update.message.text
     responder(mensaje, update)  # Llama la función en carobot.py
 
@@ -29,11 +30,13 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 
 # --- Ruta del Webhook ---
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "OK", 200
+@app.route("/deletewebhook", methods=["GET"])
+def delete_webhook():
+    response = requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+    return {
+        "status": response.status_code,
+        "response": response.json()
+    }, response.status_code
 
 # --- Ruta para activar el Webhook ---
 @app.route("/setwebhook", methods=["GET"])
