@@ -4,7 +4,7 @@ from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 from dotenv import load_dotenv
 import os
-import requests  # ✅ IMPORTANTE
+import requests
 
 from carobot import responder  # Asegurate de tener esta función en carobot.py
 
@@ -23,20 +23,17 @@ def start(update: Update, context=None):
 
 def handle_text(update: Update, context=None):
     mensaje = update.message.text
-    responder(mensaje, update)  # Llama la función en carobot.py
+    responder(mensaje, update)  # Llama a la función en carobot.py
 
 # --- Registrar Handlers ---
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+dispatcher.add_handler(MessageHandler(Filters.voice, handle_text))  # Agregamos soporte a audio
 
-# --- Ruta del Webhook ---
-@app.route("/deletewebhook", methods=["GET"])
-def delete_webhook():
-    response = requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
-    return {
-        "status": response.status_code,
-        "response": response.json()
-    }, response.status_code
+# --- Ruta raíz (opcional) ---
+@app.route("/", methods=["GET"])
+def index():
+    return "Carobot está funcionando", 200
 
 # --- Ruta para activar el Webhook ---
 @app.route("/setwebhook", methods=["GET"])
@@ -50,10 +47,21 @@ def set_webhook():
         "response": response.json()
     }, response.status_code
 
-# --- Ruta de prueba (opcional) ---
-@app.route("/", methods=["GET"])
-def index():
-    return "Carobot está funcionando", 200
+# --- Ruta para eliminar el Webhook ---
+@app.route("/deletewebhook", methods=["GET"])
+def delete_webhook():
+    response = requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+    return {
+        "status": response.status_code,
+        "response": response.json()
+    }, response.status_code
+
+# --- Ruta que recibe updates desde Telegram ---
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok", 200
 
 # --- Ejecutar App ---
 if __name__ == "__main__":
