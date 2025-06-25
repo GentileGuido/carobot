@@ -3,6 +3,7 @@ from telegram import Update, Bot
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 from dotenv import load_dotenv
 import os
+import requests  # ✅ IMPORTANTE
 
 from carobot import responder  # Asegurate de tener esta función en carobot.py
 
@@ -28,6 +29,13 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 
 # --- Ruta del Webhook ---
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "OK", 200
+
+# --- Ruta para activar el Webhook ---
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
     webhook_url = f"https://carobot.onrender.com/{TOKEN}"
@@ -39,12 +47,11 @@ def set_webhook():
         "response": response.json()
     }, response.status_code
 
-
 # --- Ruta de prueba (opcional) ---
 @app.route("/", methods=["GET"])
 def index():
     return "Carobot está funcionando", 200
 
-# --- Ejecutar App (localmente) ---
+# --- Ejecutar App ---
 if __name__ == "__main__":
-    app.run(port=8000)
+    app.run(host="0.0.0.0", port=8000)
