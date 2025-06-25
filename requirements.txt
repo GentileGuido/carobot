@@ -6,3 +6,4 @@ openai
 pydub
 ffmpeg-python
 filetype
+flask
