@@ -1,5 +1,3 @@
-print(f"TELEGRAM_TOKEN recibido: {repr(TOKEN)}")
-
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from carobot import responder
 import os
@@ -7,6 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+print(f"TELEGRAM_TOKEN recibido: {repr(TOKEN)}")
 
 def start(update, context):
     update.message.reply_text("¡Carobot en modo polling!")
