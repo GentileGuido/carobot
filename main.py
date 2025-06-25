@@ -12,6 +12,7 @@ from carobot import responder  # Asegurate que responder maneje texto y voz corr
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
+WEBHOOK_PATH = "/webhook"
 bot = Bot(token=TOKEN)
 
 # --- Iniciar Flask + Dispatcher de Telegram ---
@@ -39,7 +40,7 @@ def index():
 # --- Ruta para activar Webhook manualmente ---
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
-    webhook_url = f"{RENDER_URL}/{TOKEN}"
+    webhook_url = f"{RENDER_URL}{WEBHOOK_PATH}"
     response = requests.get(
         f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}"
     )
@@ -51,14 +52,14 @@ def delete_webhook():
     response = requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
     return {"status": response.status_code, "response": response.json()}, response.status_code
 
-# --- Ruta para recibir updates desde Telegram ---
-@app.route(f"/{TOKEN}", methods=["POST"])
+# --- Ruta FIJA para recibir updates desde Telegram ---
+@app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
     return "ok", 200
 
-# --- Ejecutar Flask si se corre localmente (opcional) ---
+# --- Ejecutar Flask localmente (opcional) ---
 if __name__ == "__main__":
     print("✅ Carobot se está ejecutando en modo Webhook.")
     app.run(host="0.0.0.0", port=8000)
