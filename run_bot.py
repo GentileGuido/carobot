@@ -1,3 +1,5 @@
+print(f"TELEGRAM_TOKEN recibido: {repr(TOKEN)}")
+
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from carobot import responder
 import os
