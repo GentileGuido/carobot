@@ -1,82 +1,110 @@
 import os
-import logging
-import tempfile
+import openai
 import requests
-from openai import OpenAI
-from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import CallbackContext
 from pydub import AudioSegment
+from dotenv import load_dotenv
 
-# --- Cargar variables de entorno ---
+# Cargar las variables del archivo .env
 load_dotenv()
+
+# --- Claves de API ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")  # opcional, puede ser una voz personalizada
+ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
+ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID")  # por ejemplo: "EXAVITQu4vr4xnSDxMaL"
 
-# --- Inicializar cliente OpenAI ---
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY
 
-# --- Inicializar logs ---
-logging.basicConfig(level=logging.INFO)
-
-def responder(mensaje: str, update: Update, context: CallbackContext = None):
+# --- Transcribir audio (Telegram -> MP3 -> Texto) ---
+def transcribir_audio(file_path):
     try:
-        # --- Obtener respuesta de OpenAI ---
-        response = client.chat.completions.create(
+        with open(file_path, "rb") as audio_file:
+            transcript = openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+        return transcript.text
+    except Exception as e:
+        print("Error al transcribir audio:", e)
+        return "Lo siento, no pude entender el audio."
+
+# --- Generar respuesta con GPT-4 ---
+def generar_respuesta(texto):
+    try:
+        respuesta = openai.chat.completions.create(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Sos Carobot, hablás como Carola y usás un tono cálido y cercano."},
-                {"role": "user", "content": mensaje}
-            ],
+            messages=[{"role": "user", "content": texto}],
             temperature=0.7
         )
-        respuesta_texto = response.choices[0].message.content.strip()
-
-        # --- Llamar a ElevenLabs para generar la voz ---
-        audio = sintetizar_audio_eleventy(respuesta_texto)
-
-        # --- Enviar audio por Telegram ---
-        if audio:
-            update.message.reply_voice(voice=audio)
-        else:
-            update.message.reply_text(respuesta_texto)
-
+        return respuesta.choices[0].message.content.strip()
     except Exception as e:
-        logging.exception("Error en manejar_mensaje:")
-        update.message.reply_text("Ups, algo falló...")
+        print("Error al generar respuesta:", e)
+        return "Tuve un problema al pensar mi respuesta."
 
-def sintetizar_audio_eleventy(texto):
+# --- Convertir texto a voz con ElevenLabs ---
+def texto_a_voz(texto, filename="respuesta.mp3"):
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}"
+    headers = {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Content-Type": "application/json"
+    }
+    data = {
+        "text": texto,
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+    }
+
     try:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID or 'Rachel'}"
-        headers = {
-            "xi-api-key": ELEVENLABS_API_KEY,
-            "Content-Type": "application/json"
-        }
-        data = {
-            "text": texto,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.4,
-                "similarity_boost": 0.8
-            }
-        }
-
         response = requests.post(url, headers=headers, json=data)
-        if response.status_code != 200:
-            logging.error(f"Error en ElevenLabs: {response.status_code}, {response.text}")
+        if response.status_code == 200:
+            with open(filename, "wb") as f:
+                f.write(response.content)
+            return filename
+        else:
+            print("Error ElevenLabs:", response.text)
             return None
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            temp_file.write(response.content)
-            temp_file.flush()
-
-            # Convertir MP3 a OGG (Telegram solo acepta .ogg/.opus para notas de voz)
-            ogg_path = temp_file.name.replace(".mp3", ".ogg")
-            sound = AudioSegment.from_mp3(temp_file.name)
-            sound.export(ogg_path, format="ogg", codec="libopus")
-            return open(ogg_path, "rb")
-
     except Exception as e:
-        logging.exception("Error al generar audio con ElevenLabs")
+        print("Error en ElevenLabs:", e)
         return None
+
+# --- Función principal para manejar texto o audio ---
+def responder(mensaje, update):
+    chat_id = update.message.chat_id
+
+    # Si es un audio
+    if update.message.voice:
+        try:
+            # 1. Descargar el archivo de voz
+            voice_file = update.message.voice.get_file()
+            ogg_path = f"audio_{chat_id}.ogg"
+            mp3_path = f"audio_{chat_id}.mp3"
+            voice_file.download(ogg_path)
+
+            # 2. Convertir a mp3
+            AudioSegment.from_ogg(ogg_path).export(mp3_path, format="mp3")
+
+            # 3. Transcribir
+            texto_transcrito = transcribir_audio(mp3_path)
+            update.message.reply_text(f"📜 {texto_transcrito}")
+
+            # 4. Generar respuesta
+            respuesta = generar_respuesta(texto_transcrito)
+
+            # 5. Responder en voz
+            archivo_voz = texto_a_voz(respuesta)
+            if archivo_voz:
+                update.message.reply_voice(voice=open(archivo_voz, "rb"))
+            else:
+                update.message.reply_text(respuesta)
+
+        except Exception as e:
+            print("Error en manejo de audio:", e)
+            update.message.reply_text("Hubo un problema con el audio. Intentá de nuevo.")
+    
+    # Si es un texto
+    elif mensaje:
+        respuesta = generar_respuesta(mensaje)
+        archivo_voz = texto_a_voz(respuesta)
+        if archivo_voz:
+            update.message.reply_voice(voice=open(archivo_voz, "rb"))
+        else:
+            update.message.reply_text(respuesta)
