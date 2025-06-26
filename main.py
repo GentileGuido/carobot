@@ -7,7 +7,9 @@ import requests
 from pydub import AudioSegment
 from openai import OpenAI
 
-# 🔐 Cargar variables de entorno
+print("🧠 Iniciando Carobot...")
+
+# Cargar variables desde entorno (Railway)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
@@ -15,15 +17,14 @@ ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
-# 👉 Agregá esta línea:
+# Mostrar un fragmento de la clave OpenAI para verificar que se está leyendo bien
 print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
 
-# 🧪 Verificar que se cargaron las claves
-print("🔑 OPENAI_API_KEY desde entorno:", repr(OPENAI_API_KEY))
-
+# Validación de claves
 def test_keys():
     results = {}
 
+    # Test Telegram
     try:
         bot_test = Bot(token=TELEGRAM_TOKEN)
         bot_test.get_me()
@@ -31,6 +32,7 @@ def test_keys():
     except Exception as e:
         results["telegram"] = f"❌ Telegram: {e}"
 
+    # Test OpenAI
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         client.models.list()
@@ -38,6 +40,7 @@ def test_keys():
     except Exception as e:
         results["openai"] = f"❌ OpenAI: {e}"
 
+    # Test ElevenLabs
     try:
         headers = {"xi-api-key": ELEVEN_API_KEY}
         r = requests.get("https://api.elevenlabs.io/v1/voices", headers=headers)
@@ -52,22 +55,21 @@ def test_keys():
 
 print(test_keys())
 
-# 🚨 Validaciones mínimas antes de iniciar
+# Verificación básica
 if not TELEGRAM_TOKEN:
     raise RuntimeError("❌ Falta TELEGRAM_TOKEN")
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ Falta OPENAI_API_KEY")
 
-# ✅ Inicializar Flask
+# Inicialización
 app = Flask(__name__)
 print("✅ Flask inicializado")
 
-# 🤖 Inicializar bot y cliente OpenAI
 bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# 🔊 Funciones de IA
+# IA
 def transcribir_audio(file_path):
     print("📝 Transcribiendo audio...")
     try:
@@ -118,7 +120,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         print("❌ Error Eleven Exception:", e)
         return None
 
-# 🧠 Manejo de mensajes entrantes
+# Lógica del bot
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
@@ -148,12 +150,12 @@ def responder(update: Update, context):
         print("❌ Error general:", e)
         msg.reply_text(f"Tuve un problema procesando el mensaje. Error: {str(e)}")
 
-# 📥 Handlers
+# Handlers
 dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
 dispatcher.add_handler(MessageHandler(Filters.voice, responder))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
 
-# 🌐 Rutas Flask
+# Rutas
 @app.route("/", methods=["GET"])
 def index():
     print("🌐 GET /")
@@ -177,7 +179,7 @@ def webhook():
         print("❌ Error en webhook:", e)
     return "ok", 200
 
-# ▶️ Ejecutar app
+# Main
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8080))
     print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
