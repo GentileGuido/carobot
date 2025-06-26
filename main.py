@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from pydub import AudioSegment
 from openai import OpenAI
 
-print("🧠 Iniciando Carobot...")
+# 👉 Agregá esta línea:
+print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
 
 # 🔐 Cargar variables de entorno
 load_dotenv()
