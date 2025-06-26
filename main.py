@@ -10,7 +10,7 @@ from openai import OpenAI
 
 print("🧠 Iniciando Carobot...")
 
-# Cargar .env
+# 🔐 Cargar variables de entorno
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -19,11 +19,12 @@ ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
-# Validación de claves
+# 🧪 Verificar que se cargaron las claves
+print("🔑 OPENAI_API_KEY desde entorno:", repr(OPENAI_API_KEY))
+
 def test_keys():
     results = {}
 
-    # Test Telegram
     try:
         bot_test = Bot(token=TELEGRAM_TOKEN)
         bot_test.get_me()
@@ -31,7 +32,6 @@ def test_keys():
     except Exception as e:
         results["telegram"] = f"❌ Telegram: {e}"
 
-    # Test OpenAI
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         client.models.list()
@@ -39,7 +39,6 @@ def test_keys():
     except Exception as e:
         results["openai"] = f"❌ OpenAI: {e}"
 
-    # Test ElevenLabs
     try:
         headers = {"xi-api-key": ELEVEN_API_KEY}
         r = requests.get("https://api.elevenlabs.io/v1/voices", headers=headers)
@@ -54,21 +53,22 @@ def test_keys():
 
 print(test_keys())
 
-# Verificación básica
+# 🚨 Validaciones mínimas antes de iniciar
 if not TELEGRAM_TOKEN:
     raise RuntimeError("❌ Falta TELEGRAM_TOKEN")
 if not OPENAI_API_KEY:
     raise RuntimeError("❌ Falta OPENAI_API_KEY")
 
-# Inicialización
+# ✅ Inicializar Flask
 app = Flask(__name__)
 print("✅ Flask inicializado")
 
+# 🤖 Inicializar bot y cliente OpenAI
 bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# IA
+# 🔊 Funciones de IA
 def transcribir_audio(file_path):
     print("📝 Transcribiendo audio...")
     try:
@@ -119,7 +119,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         print("❌ Error Eleven Exception:", e)
         return None
 
-# Lógica del bot
+# 🧠 Manejo de mensajes entrantes
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
@@ -149,12 +149,12 @@ def responder(update: Update, context):
         print("❌ Error general:", e)
         msg.reply_text(f"Tuve un problema procesando el mensaje. Error: {str(e)}")
 
-# Handlers
+# 📥 Handlers
 dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
 dispatcher.add_handler(MessageHandler(Filters.voice, responder))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
 
-# Rutas
+# 🌐 Rutas Flask
 @app.route("/", methods=["GET"])
 def index():
     print("🌐 GET /")
@@ -178,7 +178,7 @@ def webhook():
         print("❌ Error en webhook:", e)
     return "ok", 200
 
-# Main
+# ▶️ Ejecutar app
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8080))
     print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
