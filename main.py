@@ -1,6 +1,4 @@
-
-print("🔥 MAIN.PY ESTÁ SIENDO EJECUTADO 🔥")
-
+import logging
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
@@ -21,18 +19,21 @@ try:
     ELEVEN_VOICE_ID = os.environ["VOICE_ID"]
     PUBLIC_URL = os.environ.get("RAILWAY_PUBLIC_URL", "https://carobot-production.up.railway.app")
 except KeyError as e:
-    print(f"❌ ERROR: Falta variable de entorno: {e}")
+    logging.critical(f"Falta variable de entorno: {e}")
     exit(1)
 
 openai.api_key = OPENAI_API_KEY
 WEBHOOK_PATH = "/webhook"
+
+# 🔁 Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ✅ Inicializar Flask y Telegram bot
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 
-print("🧠 Iniciando Carobot...")
+logging.info("Iniciando Carobot...")
 
 # 🧠 Memoria emocional
 MEMORIA_PATH = "memoria.json"
@@ -53,14 +54,14 @@ def guardar_en_memoria(entrada, respuesta):
         with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"❌ Error guardando en memoria: {e}")
+        logging.warning(f"Error guardando en memoria: {e}")
 
 # 💬 Respuesta con ChatGPT
 SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que la persona dice para conectar mejor."
 
 def get_openai_response(prompt):
     try:
-        print("📤 Enviando a OpenAI:", prompt)
+        logging.info(f"Enviando a OpenAI: {prompt}")
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -73,7 +74,7 @@ def get_openai_response(prompt):
         guardar_en_memoria(prompt, content)
         return content
     except Exception as e:
-        print("❌ Error con OpenAI:", e)
+        logging.error(f"Error con OpenAI: {e}")
         return "No pude procesar tu mensaje."
 
 # 🗣️ ElevenLabs
@@ -95,9 +96,9 @@ def generate_elevenlabs_audio(text):
                 f.write(response.content)
             return file_path
         else:
-            print("❌ Error ElevenLabs:", response.status_code, response.text)
+            logging.error(f"Error ElevenLabs: {response.status_code} {response.text}")
     except Exception as e:
-        print("❌ Excepción ElevenLabs:", e)
+        logging.exception("Excepción ElevenLabs")
     return None
 
 # 🎤 Whisper
@@ -127,7 +128,7 @@ def handle_voice(update, context):
         sound = AudioSegment.from_ogg(ogg_path)
         sound.export(mp3_path, format="mp3")
         transcript = transcribe_audio(mp3_path)
-        print("📝 Transcripción:", transcript)
+        logging.info(f"Transcripción: {transcript}")
         reply = get_openai_response(transcript)
         audio = generate_elevenlabs_audio(reply)
         if audio:
@@ -135,7 +136,7 @@ def handle_voice(update, context):
         else:
             update.message.reply_text(reply)
     except Exception as e:
-        print(f"❌ Error procesando audio: {e}")
+        logging.exception("Error procesando audio")
         update.message.reply_text("Hubo un problema procesando tu audio.")
 
 # ✅ Handlers
@@ -152,7 +153,7 @@ def index():
 def set_webhook():
     url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
-    print("🔧 Webhook:", res.status_code, res.text)
+    logging.info(f"Webhook manual: {res.status_code} {res.text}")
     return {"status": res.status_code, "response": res.json()}
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
@@ -161,13 +162,20 @@ def webhook():
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
     except Exception as e:
-        print(f"❌ Error procesando webhook: {e}")
+        logging.exception("Error procesando webhook")
     return "ok", 200
 
-# 🔁 Gunicorn
-if __name__ != "__main__":
-    gunicorn_app = app
-else:
+# 🔀 Auto-setear webhook en Railway
+if os.environ.get("RAILWAY_ENVIRONMENT") == "production":
+    try:
+        url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
+        res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
+        logging.info(f"Webhook auto-seteado: {res.status_code} {res.text}")
+    except Exception as e:
+        logging.exception("Error seteando webhook automáticamente")
+
+# 🚀 Lanzamiento local
+if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8080))
-    print(f"🚀 Lanzando localmente en http://0.0.0.0:{PORT}")
+    logging.info(f"Lanzando localmente en http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
