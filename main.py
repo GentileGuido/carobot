@@ -40,16 +40,21 @@ MEMORIA_PATH = "memoria.json"
 
 def guardar_en_memoria(entrada, respuesta):
     try:
-        memoria = {}
         if os.path.exists(MEMORIA_PATH):
             with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
-                memoria = json.load(f)
+                try:
+                    memoria = json.load(f)
+                    if not isinstance(memoria, list):
+                        logging.warning("⚠️ memoria.json no es una lista, se reinicia.")
+                        memoria = []
+                except json.JSONDecodeError:
+                    logging.warning("⚠️ memoria.json corrupto, se reinicia.")
+                    memoria = []
+        else:
+            logging.info("🗃️ No existía memoria.json, se va a crear.")
+            memoria = []
 
-        hoy = datetime.date.today().isoformat()
-        if hoy not in memoria:
-            memoria[hoy] = []
-
-        memoria[hoy].append({
+        memoria.append({
             "timestamp": datetime.datetime.now().isoformat(),
             "entrada": entrada,
             "respuesta": respuesta
@@ -57,9 +62,10 @@ def guardar_en_memoria(entrada, respuesta):
 
         with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
-        logging.info("📜 Interacción guardada en memoria.")
+        logging.info("📝 Interacción guardada en memoria.")
     except Exception as e:
-        logging.warning(f"⚠️ Error guardando en memoria: {e}")
+        logging.warning(f"❌ Error guardando en memoria: {e}")
+
 
 # 💬 OpenAI ChatGPT
 SYSTEM_PROMPT = (
