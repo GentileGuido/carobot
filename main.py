@@ -11,7 +11,7 @@ print("🧠 Iniciando Carobot...")
 
 # Cargar variables desde entorno (Railway)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = "sk-proj-jsPBqED1sU5jStxh_CXZt0cmWu8y3XhwK-Ku7kCKf_m7Mmcv9ZYP1rXtNwYuhoQ4zvSnS883CFT3BlbkFJoNeXp8j8TsjHBgtmofJx4CjkS70uZ7"
+OPENAI_API_KEY = "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"
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
