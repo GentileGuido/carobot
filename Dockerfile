@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y ffmpeg
 WORKDIR /app
 
 # Copia los archivos del proyecto
-COPY . .
+COPY main /app
 
 # Instala las dependencias
 RUN pip install --upgrade pip && \
