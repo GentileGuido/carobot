@@ -3,11 +3,14 @@ print("🔥 MAIN.PY ESTÁ SIENDO EJECUTADO 🔥")
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+from queue import Queue
 import os
 import requests
 import openai
 from pydub import AudioSegment
 import uuid
+import json
+import datetime
 
 # 🔐 Claves desde entorno Railway
 try:
@@ -20,73 +23,52 @@ except KeyError as e:
     print(f"❌ ERROR: Falta variable de entorno: {e}")
     exit(1)
 
-WEBHOOK_PATH = "/webhook"
 openai.api_key = OPENAI_API_KEY
+WEBHOOK_PATH = "/webhook"
 
 # ✅ Inicializar Flask y Telegram bot
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True)
+dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 
 print("🧠 Iniciando Carobot...")
 
-# 🔧 Comandos de Telegram
-def start(update, context):
-    update.message.reply_text("👋 ¡Hola! Soy Carobot. Mandame un audio o mensaje de texto.")
-
-dispatcher.add_handler(CommandHandler("start", start))
-
-# ✉️ Mensaje de texto
-def handle_text(update, context):
-    user_text = update.message.text
-    reply = get_openai_response(user_text)
-    audio = generate_elevenlabs_audio(reply)
-    if audio:
-        context.bot.send_voice(chat_id=update.effective_chat.id, voice=open(audio, 'rb'))
-    else:
-        update.message.reply_text(reply)
-
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
-
-# 🔊 Mensaje de voz
-def handle_voice(update, context):
-    file = context.bot.get_file(update.message.voice.file_id)
-    ogg_path = f"/tmp/{uuid.uuid4()}.ogg"
-    mp3_path = ogg_path.replace(".ogg", ".mp3")
-    file.download(ogg_path)
-
+# 🧠 Memoria emocional
+MEMORIA_PATH = "memoria.json"
+def guardar_en_memoria(entrada, respuesta):
     try:
-        sound = AudioSegment.from_ogg(ogg_path)
-        sound.export(mp3_path, format="mp3")
-        transcript = transcribe_audio(mp3_path)
-        print("📝 Transcripción:", transcript)
-        reply = get_openai_response(transcript)
-        audio = generate_elevenlabs_audio(reply)
-        if audio:
-            context.bot.send_voice(chat_id=update.effective_chat.id, voice=open(audio, 'rb'))
-        else:
-            update.message.reply_text(reply)
+        memoria = []
+        if os.path.exists(MEMORIA_PATH):
+            with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
+                memoria = json.load(f)
+
+        memoria.append({
+            "timestamp": datetime.datetime.now().isoformat(),
+            "entrada": entrada,
+            "respuesta": respuesta
+        })
+
+        with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
+            json.dump(memoria, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"❌ Error procesando audio: {e}")
-        update.message.reply_text("Hubo un problema procesando tu audio.")
-
-dispatcher.add_handler(MessageHandler(Filters.voice, handle_voice))
-
-# 🎤 Transcripción de audio con OpenAI Whisper
-def transcribe_audio(file_path):
-    with open(file_path, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
-        return transcript["text"]
+        print(f"❌ Error guardando en memoria: {e}")
 
 # 💬 Respuesta de texto con ChatGPT
+SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que la persona dice para conectar mejor."
 def get_openai_response(prompt):
     try:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+
         res = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[{"role": "system", "content": "Sos Carobot, sensible, empática y muy humana."},
-                      {"role": "user", "content": prompt}]
+            messages=messages
         )
-        return res.choices[0].message["content"]
+        content = res.choices[0].message["content"]
+        guardar_en_memoria(prompt, content)
+        return content
     except Exception as e:
         print("❌ Error con OpenAI:", e)
         return "No pude procesar tu mensaje."
@@ -115,6 +97,49 @@ def generate_elevenlabs_audio(text):
         print("❌ Excepción ElevenLabs:", e)
     return None
 
+# 🎤 Transcripción de audio con OpenAI Whisper
+def transcribe_audio(file_path):
+    with open(file_path, "rb") as audio_file:
+        transcript = openai.Audio.transcribe("whisper-1", audio_file)
+        return transcript["text"]
+
+# 📥 Handler texto
+def handle_text(update, context):
+    user_text = update.message.text
+    reply = get_openai_response(user_text)
+    audio = generate_elevenlabs_audio(reply)
+    if audio:
+        context.bot.send_voice(chat_id=update.effective_chat.id, voice=open(audio, 'rb'))
+    else:
+        update.message.reply_text(reply)
+
+# 📥 Handler voz
+def handle_voice(update, context):
+    file = context.bot.get_file(update.message.voice.file_id)
+    ogg_path = f"/tmp/{uuid.uuid4()}.ogg"
+    mp3_path = ogg_path.replace(".ogg", ".mp3")
+    file.download(ogg_path)
+
+    try:
+        sound = AudioSegment.from_ogg(ogg_path)
+        sound.export(mp3_path, format="mp3")
+        transcript = transcribe_audio(mp3_path)
+        print("📝 Transcripción:", transcript)
+        reply = get_openai_response(transcript)
+        audio = generate_elevenlabs_audio(reply)
+        if audio:
+            context.bot.send_voice(chat_id=update.effective_chat.id, voice=open(audio, 'rb'))
+        else:
+            update.message.reply_text(reply)
+    except Exception as e:
+        print(f"❌ Error procesando audio: {e}")
+        update.message.reply_text("Hubo un problema procesando tu audio.")
+
+# ✅ Handlers
+dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+dispatcher.add_handler(MessageHandler(Filters.voice, handle_voice))
+
 # 🌐 Rutas web
 @app.route("/", methods=["GET"])
 def index():
@@ -136,7 +161,7 @@ def webhook():
         print(f"❌ Error procesando webhook: {e}")
     return "ok", 200
 
-# ✅ Para Gunicorn
+# 🔁 Gunicorn
 if __name__ != "__main__":
     gunicorn_app = app
 else:
@@ -144,5 +169,4 @@ else:
     print(f"🚀 Lanzando localmente en http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
 
-# Alias para Gunicorn
 app = app
