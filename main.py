@@ -38,6 +38,12 @@ logging.info("🧠 Iniciando Carobot...")
 # 🧠 Memoria emocional
 MEMORIA_PATH = "memoria.json"
 
+SYSTEM_PROMPT = (
+    "Sos Carobot, una inteligencia emocional y sensible. Respondés en un tono humano y cercano, "
+    "pero de forma breve y clara. No repetís frases hechas ni te extendés innecesariamente."
+)
+
+
 def guardar_en_memoria(entrada, respuesta):
     try:
         if os.path.exists(MEMORIA_PATH):
@@ -67,17 +73,20 @@ def guardar_en_memoria(entrada, respuesta):
         logging.warning(f"❌ Error guardando en memoria: {e}")
 
 
-# 💬 OpenAI ChatGPT
-SYSTEM_PROMPT = "Sos Carobot, una inteligencia emocional y sensible. Respondés en un tono humano y cercano, pero de forma breve y clara. No repetís frases hechas ni te extendés innecesariamente."
-)
-
 def get_openai_response(prompt):
     try:
         logging.info(f"📤 Enviando a OpenAI: {prompt}")
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+        if os.path.exists(MEMORIA_PATH):
+            with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
+                memoria = json.load(f)
+                for item in memoria[-1000:]:
+                    messages.append({"role": "user", "content": item["entrada"]})
+                    messages.append({"role": "assistant", "content": item["respuesta"]})
+
+        messages.append({"role": "user", "content": prompt})
+
         res = client.chat.completions.create(
             model="gpt-4",
             messages=messages
@@ -89,7 +98,6 @@ def get_openai_response(prompt):
         logging.error(f"❌ Error con OpenAI: {e}")
         return "No pude procesar tu mensaje."
 
-# 🔊 ElevenLabs mejorado
 
 def generate_elevenlabs_audio(text):
     try:
@@ -127,7 +135,6 @@ def generate_elevenlabs_audio(text):
         logging.exception("❌ Excepción al generar audio con ElevenLabs")
     return None
 
-# 🎤 Whisper
 
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
@@ -137,7 +144,6 @@ def transcribe_audio(file_path):
         )
         return transcript.text
 
-# 📥 Texto
 
 def handle_text(update, context):
     user_text = update.message.text
@@ -148,7 +154,6 @@ def handle_text(update, context):
     else:
         update.message.reply_text(reply)
 
-# 📥 Voz
 
 def handle_voice(update, context):
     file = context.bot.get_file(update.message.voice.file_id)
@@ -171,15 +176,15 @@ def handle_voice(update, context):
         logging.exception("❌ Error procesando audio")
         update.message.reply_text("Hubo un problema procesando tu audio.")
 
-# ✅ Handlers
+
 dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 dispatcher.add_handler(MessageHandler(Filters.voice, handle_voice))
 
-# 🌐 Web endpoints
 @app.route("/", methods=["GET"])
 def index():
     return "Carobot online", 200
+
 
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
@@ -187,6 +192,7 @@ def set_webhook():
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
     logging.info(f"🔧 Webhook manual: {res.status_code} {res.text}")
     return {"status": res.status_code, "response": res.json()}
+
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
@@ -197,7 +203,7 @@ def webhook():
         logging.exception("❌ Error procesando webhook")
     return "ok", 200
 
-# 🔁 Auto-setear webhook si está en producción (Railway)
+
 if os.environ.get("RAILWAY_ENVIRONMENT") == "production":
     try:
         url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
@@ -206,7 +212,7 @@ if os.environ.get("RAILWAY_ENVIRONMENT") == "production":
     except Exception as e:
         logging.exception("❌ Error seteando webhook automáticamente")
 
-# 🚀 Lanzamiento local
+
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8080))
     logging.info(f"🚀 Lanzando localmente en http://0.0.0.0:{PORT}")
