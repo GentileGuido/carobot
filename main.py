@@ -16,17 +16,17 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
-
-if not TELEGRAM_TOKEN:
-    print("❌ No se cargó TELEGRAM_TOKEN")
-else:
-    print("✅ Token de Telegram cargado")
-
-# URLs y rutas
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
-# Inicializaciones
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("❌ No se cargó TELEGRAM_TOKEN")
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ No se cargó OPENAI_API_KEY")
+
+print("✅ Variables de entorno cargadas")
+
+# Inicializar Flask y Telegram
 app = Flask(__name__)
 print("✅ Flask inicializado")
 
@@ -45,7 +45,7 @@ def transcribir_audio(file_path):
             )
         return result.text
     except Exception as e:
-        print("❌ Transcripción:", e)
+        print("❌ Error transcripción:", e)
         return "No pude entender el audio."
 
 def generar_respuesta(texto):
@@ -58,7 +58,7 @@ def generar_respuesta(texto):
         )
         return chat.choices[0].message.content.strip()
     except Exception as e:
-        print("❌ GPT:", e)
+        print("❌ Error GPT:", e)
         return "Tuve un problema generando mi respuesta."
 
 def texto_a_voz(texto, filename="respuesta.mp3"):
@@ -71,10 +71,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         }
         data = {
             "text": texto,
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
-            }
+            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
         }
         res = requests.post(url, headers=headers, json=data)
         if res.status_code == 200:
@@ -82,20 +79,20 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
                 f.write(res.content)
             return filename
         else:
-            print("❌ ElevenLabs:", res.text)
+            print("❌ Error ElevenLabs:", res.text)
             return None
     except Exception as e:
-        print("❌ Eleven Error:", e)
+        print("❌ Error Eleven Exception:", e)
         return None
 
-# Bot logic
+# Respuesta al usuario
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
     print(f"📥 Mensaje recibido de {chat_id}")
 
-    if msg.voice:
-        try:
+    try:
+        if msg.voice:
             file = msg.voice.get_file()
             ogg = f"audio_{chat_id}.ogg"
             mp3 = f"audio_{chat_id}.mp3"
@@ -104,31 +101,29 @@ def responder(update: Update, context):
             transcripcion = transcribir_audio(mp3)
             msg.reply_text(f"📜 {transcripcion}")
             respuesta = generar_respuesta(transcripcion)
-            voz = texto_a_voz(respuesta)
-            if voz:
-                msg.reply_voice(voice=open(voz, "rb"))
-            else:
-                msg.reply_text(respuesta)
-        except Exception as e:
-            print("❌ Error en audio:", e)
-            msg.reply_text("Tuve un problema con el audio.")
-    elif msg.text:
-        respuesta = generar_respuesta(msg.text)
+        else:
+            transcripcion = msg.text
+            respuesta = generar_respuesta(transcripcion)
+
         voz = texto_a_voz(respuesta)
         if voz:
             msg.reply_voice(voice=open(voz, "rb"))
         else:
             msg.reply_text(respuesta)
 
+    except Exception as e:
+        print("❌ Error general:", e)
+        msg.reply_text("Tuve un problema procesando el mensaje.")
+
 # Handlers
 dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
 dispatcher.add_handler(MessageHandler(Filters.voice, responder))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
 
-# Flask Routes
+# Rutas
 @app.route("/", methods=["GET"])
 def index():
-    print("🌐 Acceso a /")
+    print("🌐 GET /")
     return "✅ Carobot Webhook listo", 200
 
 @app.route("/setwebhook", methods=["GET"])
@@ -136,7 +131,7 @@ def set_webhook():
     print("⚙️ Intentando setear webhook...")
     url = f"{RENDER_URL}{WEBHOOK_PATH}"
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
-    print("🔁 Webhook status:", res.status_code, res.json())
+    print("🔁 Webhook response:", res.status_code, res.json())
     return {"status": res.status_code, "response": res.json()}, res.status_code
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
@@ -149,6 +144,7 @@ def webhook():
         print("❌ Error en webhook:", e)
     return "ok", 200
 
+# Main
 if __name__ == "__main__":
     print("🚀 Carobot lanzado en http://0.0.0.0:8000")
     app.run(host="0.0.0.0", port=8000)
