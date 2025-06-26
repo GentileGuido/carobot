@@ -18,4 +18,4 @@ RUN pip install --upgrade pip && \
 EXPOSE 8000
 
 # Comando para iniciar tu bot
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "main:app"]
+CMD ["python", "main.py"]
