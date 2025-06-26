@@ -18,7 +18,7 @@ try:
     OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
     ELEVEN_API_KEY = os.environ["ELEVENLABS_API_KEY"]
     ELEVEN_VOICE_ID = os.environ["VOICE_ID"]
-    RENDER_URL = os.environ.get("RAILWAY_PUBLIC_URL", "https://carobot.up.railway.app")
+    RAILWAY_PUBLIC_URL = os.environ.get("RAILWAY_PUBLIC_URL", "https://carobot.up.railway.app")
 except KeyError as e:
     print(f"❌ ERROR: Falta variable de entorno: {e}")
     exit(1)
@@ -147,7 +147,7 @@ def index():
 
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
-    url = f"{RENDER_URL}{WEBHOOK_PATH}"
+    url = f"{RAILWAY_PUBLIC_URL}{WEBHOOK_PATH}"
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
     print("🔧 Webhook:", res.status_code, res.text)
     return {"status": res.status_code, "response": res.json()}
