@@ -59,11 +59,11 @@ SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que 
 
 def get_openai_response(prompt):
     try:
+        print("📤 Enviando a OpenAI:", prompt)  # 👈 NUEVO
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ]
-
         res = openai.ChatCompletion.create(
             model="gpt-4",
             messages=messages
@@ -72,7 +72,7 @@ def get_openai_response(prompt):
         guardar_en_memoria(prompt, content)
         return content
     except Exception as e:
-        print("❌ Error con OpenAI:", e)
+        print("❌ Error con OpenAI:", e)  # 👈 IMPORTANTE
         return "No pude procesar tu mensaje."
 
 # 🗣️ ElevenLabs
