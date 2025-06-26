@@ -19,14 +19,48 @@ ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
+# Validación de claves
+def test_keys():
+    results = {}
+
+    # Test Telegram
+    try:
+        bot_test = Bot(token=TELEGRAM_TOKEN)
+        bot_test.get_me()
+        results["telegram"] = "✅ OK"
+    except Exception as e:
+        results["telegram"] = f"❌ Telegram: {e}"
+
+    # Test OpenAI
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        client.models.list()
+        results["openai"] = "✅ OK"
+    except Exception as e:
+        results["openai"] = f"❌ OpenAI: {e}"
+
+    # Test ElevenLabs
+    try:
+        headers = {"xi-api-key": ELEVEN_API_KEY}
+        r = requests.get("https://api.elevenlabs.io/v1/voices", headers=headers)
+        if r.status_code == 200:
+            results["elevenlabs"] = "✅ OK"
+        else:
+            results["elevenlabs"] = f"❌ ElevenLabs: {r.status_code} - {r.text}"
+    except Exception as e:
+        results["elevenlabs"] = f"❌ ElevenLabs: {e}"
+
+    return results
+
+print(test_keys())
+
+# Verificación básica
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("❌ No se cargó TELEGRAM_TOKEN")
+    raise RuntimeError("❌ Falta TELEGRAM_TOKEN")
 if not OPENAI_API_KEY:
-    raise RuntimeError("❌ No se cargó OPENAI_API_KEY")
+    raise RuntimeError("❌ Falta OPENAI_API_KEY")
 
-print("✅ Variables de entorno cargadas")
-
-# Inicializar Flask y Telegram
+# Inicialización
 app = Flask(__name__)
 print("✅ Flask inicializado")
 
@@ -34,7 +68,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Funciones IA
+# IA
 def transcribir_audio(file_path):
     print("📝 Transcribiendo audio...")
     try:
@@ -59,7 +93,7 @@ def generar_respuesta(texto):
         return chat.choices[0].message.content.strip()
     except Exception as e:
         print("❌ Error GPT:", e)
-        return "Tuve un problema generando mi respuesta."
+        return f"Tuve un problema generando mi respuesta. Error: {str(e)}"
 
 def texto_a_voz(texto, filename="respuesta.mp3"):
     print("🗣 Convirtiendo texto a voz...")
@@ -85,7 +119,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         print("❌ Error Eleven Exception:", e)
         return None
 
-# Responder al usuario
+# Lógica del bot
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
@@ -113,14 +147,14 @@ def responder(update: Update, context):
 
     except Exception as e:
         print("❌ Error general:", e)
-        msg.reply_text("Tuve un problema procesando el mensaje.")
+        msg.reply_text(f"Tuve un problema procesando el mensaje. Error: {str(e)}")
 
 # Handlers
 dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
 dispatcher.add_handler(MessageHandler(Filters.voice, responder))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
 
-# Rutas HTTP
+# Rutas
 @app.route("/", methods=["GET"])
 def index():
     print("🌐 GET /")
@@ -144,37 +178,8 @@ def webhook():
         print("❌ Error en webhook:", e)
     return "ok", 200
 
-# 🔍 Healthcheck de claves
-@app.route("/healthcheck", methods=["GET"])
-def healthcheck():
-    report = {}
-
-    try:
-        r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe")
-        report["telegram"] = "✅ OK" if r.status_code == 200 else f"❌ {r.text}"
-    except Exception as e:
-        report["telegram"] = f"❌ Error: {e}"
-
-    try:
-        chat = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hola"}]
-        )
-        report["openai"] = "✅ OK"
-    except Exception as e:
-        report["openai"] = f"❌ Error: {e}"
-
-    try:
-        headers = {"xi-api-key": ELEVEN_API_KEY}
-        res = requests.get("https://api.elevenlabs.io/v1/voices", headers=headers)
-        report["elevenlabs"] = "✅ OK" if res.status_code == 200 else f"❌ {res.status_code}: {res.text}"
-    except Exception as e:
-        report["elevenlabs"] = f"❌ Error: {e}"
-
-    return report, 200
-
-# MAIN
+# Main
 if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 8000))
+    PORT = int(os.environ.get("PORT", 8080))
     print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
