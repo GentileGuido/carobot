@@ -7,15 +7,15 @@ RUN apt-get update && apt-get install -y ffmpeg
 # Establece el directorio de trabajo
 WORKDIR /app
 
-# Copia los archivos del proyecto
-COPY main /app
+# Copia todos los archivos del proyecto
+COPY . .
 
 # Instala las dependencias
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Expone el puerto (por si es necesario, aunque Telegram no lo requiere)
-EXPOSE 8000
+# Expone el puerto (coincide con el que usará Gunicorn)
+EXPOSE 8080
 
-# Comando para iniciar tu bot
+# Comando para iniciar tu bot con Gunicorn (Flask WSGI)
 CMD ["gunicorn", "-b", "0.0.0.0:8080", "main:app"]
