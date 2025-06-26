@@ -25,7 +25,7 @@ except KeyError as e:
 client = OpenAI(api_key=OPENAI_API_KEY)
 WEBHOOK_PATH = "/webhook"
 
-# 🔁 Logging
+# ⟳ Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ✅ Flask y Telegram bot
@@ -80,10 +80,17 @@ def get_openai_response(prompt):
 
         if os.path.exists(MEMORIA_PATH):
             with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
-                memoria = json.load(f)
-                for item in memoria[-1000:]:
-                    messages.append({"role": "user", "content": item["entrada"]})
-                    messages.append({"role": "assistant", "content": item["respuesta"]})
+                try:
+                    memoria = json.load(f)
+                    if isinstance(memoria, list):
+                        for item in memoria[-1000:]:
+                            if "entrada" in item and "respuesta" in item:
+                                messages.append({"role": "user", "content": item["entrada"]})
+                                messages.append({"role": "assistant", "content": item["respuesta"]})
+                    else:
+                        logging.warning("⚠️ memoria.json no es una lista válida.")
+                except Exception as e:
+                    logging.warning(f"⚠️ Error leyendo memoria: {e}")
 
         messages.append({"role": "user", "content": prompt})
 
