@@ -4,7 +4,6 @@ from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 from queue import Queue
 import os
 import requests
-from dotenv import load_dotenv
 from pydub import AudioSegment
 from openai import OpenAI
 
@@ -12,7 +11,6 @@ from openai import OpenAI
 print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
 
 # 🔐 Cargar variables de entorno
-load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
