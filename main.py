@@ -6,29 +6,28 @@ import os
 import requests
 from dotenv import load_dotenv
 from pydub import AudioSegment
-import openai
+from openai import OpenAI
 
-# --- Cargar variables ---
+# --- Cargar variables de entorno ---
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
-ELEVEN_VOICE_ID = os.getenv("ELEVEN_VOICE_ID")
+ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
-openai.api_key = OPENAI_API_KEY
+# --- Inicializaciones ---
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 bot = Bot(token=TELEGRAM_TOKEN)
-
-# --- Flask + Telegram ---
 app = Flask(__name__)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 
-# --- Funciones de IA ---
+# --- IA: Audio a texto ---
 def transcribir_audio(file_path):
     try:
         with open(file_path, "rb") as audio_file:
-            transcript = openai.audio.transcriptions.create(
+            transcript = openai_client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file
             )
@@ -37,25 +36,33 @@ def transcribir_audio(file_path):
         print("❌ Error al transcribir:", e)
         return "Lo siento, no pude entender el audio."
 
+# --- IA: Texto a texto ---
 def generar_respuesta(texto):
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4",
+        respuesta = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",  # o "gpt-4"
             messages=[{"role": "user", "content": texto}],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+        return respuesta.choices[0].message.content.strip()
     except Exception as e:
         print("❌ Error al generar respuesta:", e)
-        return "Tuve un problema al pensar mi respuesta."
+        return f"Tuve un problema al pensar mi respuesta. (Error: {e})"
 
+# --- IA: Texto a voz ---
 def texto_a_voz(texto, filename="respuesta.mp3"):
     try:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}"
-        headers = {"xi-api-key": ELEVEN_API_KEY, "Content-Type": "application/json"}
+        headers = {
+            "xi-api-key": ELEVEN_API_KEY,
+            "Content-Type": "application/json"
+        }
         data = {
             "text": texto,
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
         }
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 200:
@@ -69,7 +76,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         print("❌ Error en ElevenLabs:", e)
         return None
 
-# --- Función principal de respuesta ---
+# --- Lógica principal del bot ---
 def responder(update: Update):
     mensaje = update.message.text if update.message.text else None
     chat_id = update.message.chat_id
@@ -100,7 +107,7 @@ def responder(update: Update):
         else:
             update.message.reply_text(respuesta)
 
-# --- Handlers Telegram ---
+# --- Handlers de comandos y mensajes ---
 def start(update: Update, context): update.message.reply_text("👋 ¡Hola! Soy Carobot. Probá escribirme o mandame un audio.")
 def handle(update: Update, context): responder(update)
 
@@ -108,7 +115,7 @@ dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle))
 dispatcher.add_handler(MessageHandler(Filters.voice, handle))
 
-# --- Web Server ---
+# --- Web Endpoints ---
 @app.route("/", methods=["GET"])
 def index(): return "✅ Carobot Webhook OK", 200
 
