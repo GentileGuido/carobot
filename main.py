@@ -7,9 +7,6 @@ import requests
 from pydub import AudioSegment
 from openai import OpenAI
 
-# 👉 Agregá esta línea:
-print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
-
 # 🔐 Cargar variables de entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -17,6 +14,9 @@ ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
+
+# 👉 Agregá esta línea:
+print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
 
 # 🧪 Verificar que se cargaron las claves
 print("🔑 OPENAI_API_KEY desde entorno:", repr(OPENAI_API_KEY))
