@@ -9,16 +9,16 @@ from openai import OpenAI
 
 print("🧠 Iniciando Carobot...")
 
-# Cargar variables desde entorno (Railway)
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = "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"
-ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
-RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
+# Leer variables del entorno de Railway
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+ELEVEN_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
+ELEVEN_VOICE_ID = os.environ.get("VOICE_ID")
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
-# Mostrar un fragmento de la clave OpenAI para verificar que se está leyendo bien
-print("🔑 OPENAI_API_KEY desde entorno (inicio):", repr(OPENAI_API_KEY[:20] + "..."))
+# Mostrar la API key completa (solo para debug temporal, luego BORRAR)
+print("🔑 Clave OpenAI cargada desde entorno COMPLETA (debug):", OPENAI_API_KEY)
 
 # Validación de claves
 def test_keys():
