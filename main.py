@@ -5,7 +5,7 @@ from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 from queue import Queue
 import os
 import requests
-import openai
+from openai import OpenAI
 from pydub import AudioSegment
 import uuid
 import json
@@ -22,7 +22,7 @@ except KeyError as e:
     logging.critical(f"Falta variable de entorno: {e}")
     exit(1)
 
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 WEBHOOK_PATH = "/webhook"
 
 # 🔁 Configurar logging
@@ -66,11 +66,11 @@ def get_openai_response(prompt):
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ]
-        res = openai.ChatCompletion.create(
+        res = client.chat.completions.create(
             model="gpt-4",
             messages=messages
         )
-        content = res.choices[0].message["content"]
+        content = res.choices[0].message.content
         guardar_en_memoria(prompt, content)
         return content
     except Exception as e:
@@ -104,8 +104,11 @@ def generate_elevenlabs_audio(text):
 # 🎤 Whisper
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
-        return transcript["text"]
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file
+        )
+        return transcript.text
 
 # 📥 Texto
 def handle_text(update, context):
