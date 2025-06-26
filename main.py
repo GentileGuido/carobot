@@ -10,7 +10,7 @@ from openai import OpenAI
 
 print("🧠 Iniciando Carobot...")
 
-# Cargar variables de entorno
+# Cargar .env
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -103,4 +103,49 @@ def responder(update: Update, context):
             respuesta = generar_respuesta(transcripcion)
         else:
             transcripcion = msg.text
-            respuesta = generar_respuesta(transcripci_
+            respuesta = generar_respuesta(transcripcion)
+
+        voz = texto_a_voz(respuesta)
+        if voz:
+            msg.reply_voice(voice=open(voz, "rb"))
+        else:
+            msg.reply_text(respuesta)
+
+    except Exception as e:
+        print("❌ Error general:", e)
+        msg.reply_text("Tuve un problema procesando el mensaje.")
+
+# Handlers
+dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 ¡Hola! Soy Carobot.")))
+dispatcher.add_handler(MessageHandler(Filters.voice, responder))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
+
+# Rutas
+@app.route("/", methods=["GET"])
+def index():
+    print("🌐 GET /")
+    return "✅ Carobot Webhook listo", 200
+
+@app.route("/setwebhook", methods=["GET"])
+def set_webhook():
+    print("⚙️ Intentando setear webhook...")
+    url = f"{RENDER_URL}{WEBHOOK_PATH}"
+    res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
+    print("🔁 Webhook response:", res.status_code, res.json())
+    return {"status": res.status_code, "response": res.json()}, res.status_code
+
+@app.route(WEBHOOK_PATH, methods=["POST"])
+def webhook():
+    print("📡 Webhook recibido")
+    try:
+        update = Update.de_json(request.get_json(force=True), bot)
+        dispatcher.process_update(update)
+    except Exception as e:
+        print("❌ Error en webhook:", e)
+    return "ok", 200
+
+# Main
+if __name__ == "__main__":
+    PORT = int(os.environ.get("PORT", 8000))
+    print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
+    app.run(host="0.0.0.0", port=PORT)
