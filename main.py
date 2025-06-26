@@ -11,7 +11,7 @@ import uuid
 import json
 import datetime
 
-# 🔐 Variables de entorno (adaptado a Railway)
+# 🔐 Variables de entorno
 try:
     TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
     OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -19,21 +19,21 @@ try:
     ELEVEN_VOICE_ID = os.environ["VOICE_ID"]
     PUBLIC_URL = os.environ.get("RAILWAY_PUBLIC_URL", "https://carobot-production.up.railway.app")
 except KeyError as e:
-    logging.critical(f"Falta variable de entorno: {e}")
+    logging.critical(f"❌ Falta variable de entorno: {e}")
     exit(1)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 WEBHOOK_PATH = "/webhook"
 
-# 🔁 Configurar logging
+# 🔁 Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# ✅ Inicializar Flask y Telegram bot
+# ✅ Flask y Telegram bot
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 
-logging.info("Iniciando Carobot...")
+logging.info("🧠 Iniciando Carobot...")
 
 # 🧠 Memoria emocional
 MEMORIA_PATH = "memoria.json"
@@ -44,6 +44,8 @@ def guardar_en_memoria(entrada, respuesta):
         if os.path.exists(MEMORIA_PATH):
             with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
                 memoria = json.load(f)
+        else:
+            logging.info("🗃️ No existía memoria.json, se va a crear.")
 
         memoria.append({
             "timestamp": datetime.datetime.now().isoformat(),
@@ -53,15 +55,16 @@ def guardar_en_memoria(entrada, respuesta):
 
         with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
+        logging.info("📝 Interacción guardada en memoria.")
     except Exception as e:
-        logging.warning(f"Error guardando en memoria: {e}")
+        logging.warning(f"❌ Error guardando en memoria: {e}")
 
-# 💬 Respuesta con ChatGPT
+# 💬 OpenAI ChatGPT
 SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que la persona dice para conectar mejor."
 
 def get_openai_response(prompt):
     try:
-        logging.info(f"Enviando a OpenAI: {prompt}")
+        logging.info(f"📤 Enviando a OpenAI: {prompt}")
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -74,7 +77,7 @@ def get_openai_response(prompt):
         guardar_en_memoria(prompt, content)
         return content
     except Exception as e:
-        logging.error(f"Error con OpenAI: {e}")
+        logging.error(f"❌ Error con OpenAI: {e}")
         return "No pude procesar tu mensaje."
 
 # 🗣️ ElevenLabs
@@ -96,9 +99,9 @@ def generate_elevenlabs_audio(text):
                 f.write(response.content)
             return file_path
         else:
-            logging.error(f"Error ElevenLabs: {response.status_code} {response.text}")
+            logging.error(f"❌ Error ElevenLabs: {response.status_code} {response.text}")
     except Exception as e:
-        logging.exception("Excepción ElevenLabs")
+        logging.exception("❌ Excepción ElevenLabs")
     return None
 
 # 🎤 Whisper
@@ -131,7 +134,7 @@ def handle_voice(update, context):
         sound = AudioSegment.from_ogg(ogg_path)
         sound.export(mp3_path, format="mp3")
         transcript = transcribe_audio(mp3_path)
-        logging.info(f"Transcripción: {transcript}")
+        logging.info(f"📝 Transcripción: {transcript}")
         reply = get_openai_response(transcript)
         audio = generate_elevenlabs_audio(reply)
         if audio:
@@ -139,7 +142,7 @@ def handle_voice(update, context):
         else:
             update.message.reply_text(reply)
     except Exception as e:
-        logging.exception("Error procesando audio")
+        logging.exception("❌ Error procesando audio")
         update.message.reply_text("Hubo un problema procesando tu audio.")
 
 # ✅ Handlers
@@ -147,7 +150,7 @@ dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 dispatcher.add_handler(MessageHandler(Filters.voice, handle_voice))
 
-# 🌐 Rutas web
+# 🌐 Web endpoints
 @app.route("/", methods=["GET"])
 def index():
     return "Carobot online", 200
@@ -156,7 +159,7 @@ def index():
 def set_webhook():
     url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
-    logging.info(f"Webhook manual: {res.status_code} {res.text}")
+    logging.info(f"🔧 Webhook manual: {res.status_code} {res.text}")
     return {"status": res.status_code, "response": res.json()}
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
@@ -165,20 +168,20 @@ def webhook():
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
     except Exception as e:
-        logging.exception("Error procesando webhook")
+        logging.exception("❌ Error procesando webhook")
     return "ok", 200
 
-# 🔀 Auto-setear webhook en Railway
+# 🔁 Auto-setear webhook si está en producción (Railway)
 if os.environ.get("RAILWAY_ENVIRONMENT") == "production":
     try:
         url = f"{PUBLIC_URL}{WEBHOOK_PATH}"
         res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
-        logging.info(f"Webhook auto-seteado: {res.status_code} {res.text}")
+        logging.info(f"🔧 Webhook auto-seteado: {res.status_code} {res.text}")
     except Exception as e:
-        logging.exception("Error seteando webhook automáticamente")
+        logging.exception("❌ Error seteando webhook automáticamente")
 
 # 🚀 Lanzamiento local
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8080))
-    logging.info(f"Lanzando localmente en http://0.0.0.0:{PORT}")
+    logging.info(f"🚀 Lanzando localmente en http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
