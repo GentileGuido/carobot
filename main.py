@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from pydub import AudioSegment
 from openai import OpenAI
 
+print("🧠 Iniciando Carobot...")
+
 # Cargar .env
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -15,18 +17,26 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVEN_VOICE_ID = os.getenv("VOICE_ID")
 
+if not TELEGRAM_TOKEN:
+    print("❌ No se cargó TELEGRAM_TOKEN")
+else:
+    print("✅ Token de Telegram cargado")
+
 # URLs y rutas
 RENDER_URL = os.getenv("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
 # Inicializaciones
 app = Flask(__name__)
+print("✅ Flask inicializado")
+
 bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Lógica IA
 def transcribir_audio(file_path):
+    print("📝 Transcribiendo audio...")
     try:
         with open(file_path, "rb") as audio_file:
             result = openai_client.audio.transcriptions.create(
@@ -39,6 +49,7 @@ def transcribir_audio(file_path):
         return "No pude entender el audio."
 
 def generar_respuesta(texto):
+    print("🤖 Generando respuesta...")
     try:
         chat = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -51,6 +62,7 @@ def generar_respuesta(texto):
         return "Tuve un problema generando mi respuesta."
 
 def texto_a_voz(texto, filename="respuesta.mp3"):
+    print("🗣 Convirtiendo texto a voz...")
     try:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}"
         headers = {
@@ -80,6 +92,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
+    print(f"📥 Mensaje recibido de {chat_id}")
 
     if msg.voice:
         try:
@@ -115,16 +128,20 @@ dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder
 # Flask Routes
 @app.route("/", methods=["GET"])
 def index():
+    print("🌐 Acceso a /")
     return "✅ Carobot Webhook listo", 200
 
 @app.route("/setwebhook", methods=["GET"])
 def set_webhook():
+    print("⚙️ Intentando setear webhook...")
     url = f"{RENDER_URL}{WEBHOOK_PATH}"
     res = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={url}")
+    print("🔁 Webhook status:", res.status_code, res.json())
     return {"status": res.status_code, "response": res.json()}, res.status_code
 
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
+    print("📡 Webhook recibido")
     try:
         update = Update.de_json(request.get_json(force=True), bot)
         dispatcher.process_update(update)
@@ -133,4 +150,5 @@ def webhook():
     return "ok", 200
 
 if __name__ == "__main__":
+    print("🚀 Carobot lanzado en http://0.0.0.0:8000")
     app.run(host="0.0.0.0", port=8000)
