@@ -1,3 +1,4 @@
+
 print("🔥 MAIN.PY ESTÁ SIENDO EJECUTADO 🔥")
 
 from flask import Flask, request
@@ -59,7 +60,7 @@ SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que 
 
 def get_openai_response(prompt):
     try:
-        print("📤 Enviando a OpenAI:", prompt)  # 👈 NUEVO
+        print("📤 Enviando a OpenAI:", prompt)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -72,7 +73,7 @@ def get_openai_response(prompt):
         guardar_en_memoria(prompt, content)
         return content
     except Exception as e:
-        print("❌ Error con OpenAI:", e)  # 👈 IMPORTANTE
+        print("❌ Error con OpenAI:", e)
         return "No pude procesar tu mensaje."
 
 # 🗣️ ElevenLabs
@@ -170,5 +171,3 @@ else:
     PORT = int(os.environ.get("PORT", 8080))
     print(f"🚀 Lanzando localmente en http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
-
-app = app
