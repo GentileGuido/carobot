@@ -14,7 +14,6 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
 ELEVEN_VOICE_ID = os.environ.get("VOICE_ID")
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL") or "https://carobot.onrender.com"
 WEBHOOK_PATH = "/webhook"
 
 # Mostrar la API key completa (solo para debug temporal, luego BORRAR)
