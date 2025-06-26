@@ -34,7 +34,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dispatcher = Dispatcher(bot, update_queue=Queue(), workers=1, use_context=True)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Lógica IA
+# Funciones IA
 def transcribir_audio(file_path):
     print("📝 Transcribiendo audio...")
     try:
@@ -85,7 +85,7 @@ def texto_a_voz(texto, filename="respuesta.mp3"):
         print("❌ Error Eleven Exception:", e)
         return None
 
-# Respuesta al usuario
+# Responder al usuario
 def responder(update: Update, context):
     msg = update.message
     chat_id = msg.chat_id
@@ -120,7 +120,7 @@ dispatcher.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text
 dispatcher.add_handler(MessageHandler(Filters.voice, responder))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, responder))
 
-# Rutas
+# Rutas HTTP
 @app.route("/", methods=["GET"])
 def index():
     print("🌐 GET /")
@@ -144,7 +144,36 @@ def webhook():
         print("❌ Error en webhook:", e)
     return "ok", 200
 
-# Main
+# 🔍 Healthcheck de claves
+@app.route("/healthcheck", methods=["GET"])
+def healthcheck():
+    report = {}
+
+    try:
+        r = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe")
+        report["telegram"] = "✅ OK" if r.status_code == 200 else f"❌ {r.text}"
+    except Exception as e:
+        report["telegram"] = f"❌ Error: {e}"
+
+    try:
+        chat = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hola"}]
+        )
+        report["openai"] = "✅ OK"
+    except Exception as e:
+        report["openai"] = f"❌ Error: {e}"
+
+    try:
+        headers = {"xi-api-key": ELEVEN_API_KEY}
+        res = requests.get("https://api.elevenlabs.io/v1/voices", headers=headers)
+        report["elevenlabs"] = "✅ OK" if res.status_code == 200 else f"❌ {res.status_code}: {res.text}"
+    except Exception as e:
+        report["elevenlabs"] = f"❌ Error: {e}"
+
+    return report, 200
+
+# MAIN
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8000))
     print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
