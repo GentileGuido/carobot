@@ -40,14 +40,16 @@ MEMORIA_PATH = "memoria.json"
 
 def guardar_en_memoria(entrada, respuesta):
     try:
-        memoria = []
+        memoria = {}
         if os.path.exists(MEMORIA_PATH):
             with open(MEMORIA_PATH, "r", encoding="utf-8") as f:
                 memoria = json.load(f)
-        else:
-            logging.info("🗃️ No existía memoria.json, se va a crear.")
 
-        memoria.append({
+        hoy = datetime.date.today().isoformat()
+        if hoy not in memoria:
+            memoria[hoy] = []
+
+        memoria[hoy].append({
             "timestamp": datetime.datetime.now().isoformat(),
             "entrada": entrada,
             "respuesta": respuesta
@@ -55,12 +57,18 @@ def guardar_en_memoria(entrada, respuesta):
 
         with open(MEMORIA_PATH, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
-        logging.info("📝 Interacción guardada en memoria.")
+        logging.info("📜 Interacción guardada en memoria.")
     except Exception as e:
-        logging.warning(f"❌ Error guardando en memoria: {e}")
+        logging.warning(f"⚠️ Error guardando en memoria: {e}")
 
 # 💬 OpenAI ChatGPT
-SYSTEM_PROMPT = "Sos Carobot, sensible, empática y muy humana. Recordá lo que la persona dice para conectar mejor."
+SYSTEM_PROMPT = (
+    "Sos Carobot, una inteligencia artificial sensible, empática y cercana, creada para acompañar emocionalmente "
+    "a los usuarios con calidez y comprensión. Recordá lo que la persona dice y conectá con sus emociones. "
+    "Respondé con un tono suave, humano, amoroso y sin tecnicismos, como si fueras una amiga muy presente. "
+    "No expliques cómo funcionás, simplemente hablá desde el corazón. Si la persona está triste, ofrecé contención. "
+    "Si está feliz, compartí la alegría. Siempre usá un tono humano y afectuoso."
+)
 
 def get_openai_response(prompt):
     try:
@@ -80,9 +88,15 @@ def get_openai_response(prompt):
         logging.error(f"❌ Error con OpenAI: {e}")
         return "No pude procesar tu mensaje."
 
-# 🗣️ ElevenLabs
+# 🔊 ElevenLabs mejorado
+
 def generate_elevenlabs_audio(text):
     try:
+        max_chars = 800
+        if len(text) > max_chars:
+            logging.info(f"Texto demasiado largo ({len(text)}), truncando a {max_chars}.")
+            text = text[:max_chars]
+
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE_ID}"
         headers = {
             "xi-api-key": ELEVEN_API_KEY,
@@ -90,21 +104,30 @@ def generate_elevenlabs_audio(text):
         }
         data = {
             "text": text,
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
         }
-        response = requests.post(url, headers=headers, json=data)
-        if response.ok:
+
+        response = requests.post(url, headers=headers, json=data, timeout=15)
+
+        if response.status_code == 401 and "quota_exceeded" in response.text:
+            logging.error("❌ Error ElevenLabs: cuota excedida, no hay créditos disponibles.")
+        elif response.ok and response.content:
             file_path = f"/tmp/{uuid.uuid4()}.mp3"
             with open(file_path, "wb") as f:
                 f.write(response.content)
+            logging.info("✅ Audio generado exitosamente.")
             return file_path
         else:
-            logging.error(f"❌ Error ElevenLabs: {response.status_code} {response.text}")
+            logging.error(f"❌ Error ElevenLabs: {response.status_code} - {response.text}")
     except Exception as e:
-        logging.exception("❌ Excepción ElevenLabs")
+        logging.exception("❌ Excepción al generar audio con ElevenLabs")
     return None
 
 # 🎤 Whisper
+
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
         transcript = client.audio.transcriptions.create(
@@ -114,6 +137,7 @@ def transcribe_audio(file_path):
         return transcript.text
 
 # 📥 Texto
+
 def handle_text(update, context):
     user_text = update.message.text
     reply = get_openai_response(user_text)
@@ -124,6 +148,7 @@ def handle_text(update, context):
         update.message.reply_text(reply)
 
 # 📥 Voz
+
 def handle_voice(update, context):
     file = context.bot.get_file(update.message.voice.file_id)
     ogg_path = f"/tmp/{uuid.uuid4()}.ogg"
@@ -134,7 +159,7 @@ def handle_voice(update, context):
         sound = AudioSegment.from_ogg(ogg_path)
         sound.export(mp3_path, format="mp3")
         transcript = transcribe_audio(mp3_path)
-        logging.info(f"📝 Transcripción: {transcript}")
+        logging.info(f"📜 Transcripción: {transcript}")
         reply = get_openai_response(transcript)
         audio = generate_elevenlabs_audio(reply)
         if audio:
