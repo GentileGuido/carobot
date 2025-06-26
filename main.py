@@ -6,6 +6,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from pydub import AudioSegment
+
 from openai import OpenAI
 
 print("🧠 Iniciando Carobot...")
