@@ -146,5 +146,7 @@ def webhook():
 
 # Main
 if __name__ == "__main__":
-    print("🚀 Carobot lanzado en http://0.0.0.0:8000")
-    app.run(host="0.0.0.0", port=8000)
+    PORT = int(os.environ.get("PORT", 8000))
+    print(f"🚀 Carobot lanzado en http://0.0.0.0:{PORT}")
+    app.run(host="0.0.0.0", port=PORT)
+
