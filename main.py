@@ -43,7 +43,10 @@ MEMORIA_PATH = "memoria.json"
 HECHOS_PATH = "hechos.json"
 ESTADO_PATH = "estado.json"
 PERFIL_PATH = "perfil_carola.txt"
-FOLLOWUP_HOURS = int(os.environ.get("FOLLOWUP_HOURS", "24"))
+try:
+    FOLLOWUP_HOURS = float(os.environ.get("FOLLOWUP_HOURS", "24"))
+except Exception:
+    FOLLOWUP_HOURS = 24.0
 
 SYSTEM_PROMPT = (
     "Sos Carobot, una inteligencia emocional y sensible. Respondés en un tono humano y cercano, "
