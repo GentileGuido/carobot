@@ -126,13 +126,28 @@ def actualizar_estado_emocional(texto):
         estado = {
             "timestamp": datetime.datetime.now().isoformat(),
             "mood": mood,
-            "resumen": texto[:140]
+            "resumen": texto[:140],
+            # Al registrar un nuevo estado, reseteamos el flag de follow-up
+            "followup_asked": False
         }
         with open(ESTADO_PATH, "w", encoding="utf-8") as f:
             json.dump(estado, f, ensure_ascii=False, indent=2)
         logging.info(f"🫀 Estado emocional actualizado: {mood}")
     except Exception as e:
         logging.warning(f"⚠️ No se pudo actualizar estado emocional: {e}")
+
+
+def marcar_followup_preguntado():
+    try:
+        estado = cargar_estado()
+        if not estado:
+            return
+        estado["followup_asked"] = True
+        estado["followup_asked_at"] = datetime.datetime.now().isoformat()
+        with open(ESTADO_PATH, "w", encoding="utf-8") as f:
+            json.dump(estado, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.warning(f"⚠️ No se pudo marcar follow-up como preguntado: {e}")
 
 
 def guardar_en_memoria(entrada, respuesta):
@@ -178,7 +193,8 @@ def get_openai_response(prompt):
         # Seguimiento emocional: si la persona reportó ánimo antes y hoy no lo menciona, sugerir un check-in
         estado = cargar_estado()
         mood_en_prompt = detectar_mood(prompt)
-        if estado and not mood_en_prompt:
+        followup_debido = False
+        if estado and not mood_en_prompt and not estado.get("followup_asked", False):
             try:
                 ts = datetime.datetime.fromisoformat(estado.get("timestamp"))
                 horas = (datetime.datetime.now() - ts).total_seconds() / 3600.0
@@ -191,6 +207,7 @@ def get_openai_response(prompt):
                             "Si no lo menciona, preguntá con suavidad si siguió igual o cambió."
                         )
                     })
+                    followup_debido = True
             except Exception:
                 pass
 
@@ -203,6 +220,8 @@ def get_openai_response(prompt):
             res = client.chat.completions.create(model=OPENAI_FALLBACK_MODEL, messages=messages)
         content = res.choices[0].message.content
         guardar_en_memoria(prompt, content)
+        if 'followup_debido' in locals() and followup_debido:
+            marcar_followup_preguntado()
         return content
     except Exception as e:
         msg = str(e)
