@@ -11,6 +11,7 @@ import uuid
 import json
 import datetime
 import re
+import tempfile
 
 # 🔐 Variables de entorno
 try:
@@ -254,7 +255,7 @@ def generate_elevenlabs_audio(text):
             logging.warning("🔇 ElevenLabs sin créditos (401 quota_exceeded). Enviando solo texto.")
             return None
         if response.ok and response.content:
-            path = f"/tmp/{uuid.uuid4()}.mp3"
+            path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.mp3")
             with open(path, "wb") as f:
                 f.write(response.content)
             logging.info("✅ Audio generado exitosamente.")
@@ -300,12 +301,18 @@ def handle_text(update, context):
 
 def handle_voice(update, context):
     file = context.bot.get_file(update.message.voice.file_id)
-    ogg_path = f"/tmp/{uuid.uuid4()}.ogg"
+    tmp_dir = tempfile.gettempdir()
+    ogg_path = os.path.join(tmp_dir, f"{uuid.uuid4()}.ogg")
     mp3_path = ogg_path.replace(".ogg", ".mp3")
     file.download(ogg_path)
     try:
-        AudioSegment.from_ogg(ogg_path).export(mp3_path, format="mp3")
-        transcript = transcribe_audio(mp3_path)
+        transcript = transcribe_audio(ogg_path)
+        if not transcript:
+            try:
+                AudioSegment.from_file(ogg_path, format="ogg").export(mp3_path, format="mp3")
+                transcript = transcribe_audio(mp3_path)
+            except Exception:
+                transcript = None
         if not transcript:
             update.message.reply_text("No pude transcribir tu nota de voz.")
             return
