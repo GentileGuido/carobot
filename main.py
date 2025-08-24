@@ -20,8 +20,8 @@ try:
     ELEVEN_API_KEY = os.environ["ELEVENLABS_API_KEY"]
     ELEVEN_VOICE_ID = os.environ["VOICE_ID"]
     PUBLIC_URL = os.environ.get("RAILWAY_PUBLIC_URL", "https://carobot-production.up.railway.app")
-    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4")  # Parametrizable; rollback fácil cambiando la env var
-    OPENAI_FALLBACK_MODEL = os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-4o-mini")
+    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")  # Por defecto uno vigente y accesible
+    OPENAI_FALLBACK_MODEL = os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-4o")
 except KeyError as e:
     logging.critical(f"❌ Falta variable de entorno: {e}")
     exit(1)
@@ -269,8 +269,14 @@ def generate_elevenlabs_audio(text):
 def transcribe_audio(file_path):
     try:
         with open(file_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
-            return transcript.text
+            try:
+                transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
+                return transcript.text
+            except Exception as primary_err:
+                logging.warning(f"⚠️ Whisper-1 falló, probando fallback gpt-4o-mini-transcribe: {primary_err}")
+                audio_file.seek(0)
+                transcript = client.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=audio_file)
+                return getattr(transcript, "text", None) or getattr(transcript, "transcript", None)
     except Exception as e:
         logging.error(f"❌ Error transcribiendo audio: {e}")
         return None
