@@ -21,17 +21,33 @@ try:
 except Exception as e:
     results["telegram"] = f"❌ Error: {e}"
 
-# Test OpenAI
+# Test OpenAI Chat y Transcripción
 try:
     client = OpenAI(api_key=OPENAI_API_KEY)
+    preferred_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     chat = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=preferred_model,
         messages=[{"role": "user", "content": "Hola"}],
         max_tokens=5
     )
-    results["openai"] = "✅ OK"
+    results["openai_chat"] = f"✅ OK - {preferred_model}"
 except Exception as e:
-    results["openai"] = f"❌ OpenAI: {e}"
+    results["openai_chat"] = f"❌ {type(e).__name__}: {e}"
+
+try:
+    # Crea un wav vacío de 0.5s para probar credenciales del endpoint
+    import io, wave
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00" * 16000)
+    buf.seek(0)
+    tr = client.audio.transcriptions.create(model="whisper-1", file=buf)
+    results["openai_transcribe"] = "✅ OK whisper-1"
+except Exception as e:
+    results["openai_transcribe"] = f"❌ {type(e).__name__}: {e}"
 
 # Test ElevenLabs
 try:

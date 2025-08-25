@@ -217,7 +217,10 @@ def get_openai_response(prompt):
         try:
             res = client.chat.completions.create(model=OPENAI_MODEL, messages=messages)
         except Exception as primary_err:
-            logging.warning(f"⚠️ Modelo primario '{OPENAI_MODEL}' falló. Probando fallback '{OPENAI_FALLBACK_MODEL}'.")
+            logging.warning(
+                f"⚠️ Modelo primario '{OPENAI_MODEL}' falló: {type(primary_err).__name__}: {primary_err}. "
+                f"Probando fallback '{OPENAI_FALLBACK_MODEL}'."
+            )
             res = client.chat.completions.create(model=OPENAI_FALLBACK_MODEL, messages=messages)
         content = res.choices[0].message.content
         guardar_en_memoria(prompt, content)
@@ -227,11 +230,18 @@ def get_openai_response(prompt):
     except Exception as e:
         msg = str(e)
         if "401" in msg or "Unauthorized" in msg or "invalid_api_key" in msg:
-            logging.error("❌ Error OpenAI 401/Unauthorized. Revisar OPENAI_API_KEY (no se imprime por seguridad).")
-        elif "403" in msg or "insufficient_quota" in msg:
-            logging.error("❌ Error OpenAI 403/Quota. Créditos agotados o sin permisos.")
+            logging.error(
+                "❌ Error OpenAI 401/Unauthorized. Revisar OPENAI_API_KEY y permisos del proyecto. Detalle: " + msg
+            )
+        elif "403" in msg or "insufficient_quota" in msg or "quota" in msg.lower():
+            logging.error("❌ Error OpenAI 403/Quota. Créditos agotados o sin permisos. Detalle: " + msg)
+        elif "model" in msg.lower() and "not found" in msg.lower():
+            logging.error(
+                f"❌ Modelo no disponible: defina OPENAI_MODEL/OPENAI_FALLBACK_MODEL a uno habilitado (actual: '{OPENAI_MODEL}', fallback: '{OPENAI_FALLBACK_MODEL}'). Detalle: "
+                + msg
+            )
         else:
-            logging.error(f"❌ Error con OpenAI: {e}")
+            logging.error(f"❌ Error con OpenAI: {type(e).__name__}: {e}")
         return "No pude procesar tu mensaje."
 
 def guardar_hecho(texto):
